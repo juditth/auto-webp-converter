@@ -1,0 +1,18 @@
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
