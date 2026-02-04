@@ -1,10 +1,11 @@
 <?php
 /**
  * Plugin Name: Auto WebP Converter
- * Plugin URI:  https://vyladeny-web.cz/
+ * Plugin URI:  https://github.com/juditth/auto-webp-converter/
  * Description: Automatically converts uploaded images to WebP, resizes them, and optionally deletes originals.
  * Version:     1.0.2
- * Author:      Jitka Klingenbergova 
+ * Author:      Jitka Klingenbergová
+ * Author URI:  https://vyladeny-web.cz/
  * License:     GPLv2 or later
  */
 
@@ -20,6 +21,9 @@ class Auto_WebP_Converter
 		add_action('admin_menu', array($this, 'add_settings_page'));
 		add_action('admin_init', array($this, 'register_settings'));
 		add_filter('wp_handle_upload', array($this, 'handle_upload'));
+
+		// Settings link on plugins page
+		add_filter('plugin_action_links_' . plugin_basename(__FILE__), array($this, 'add_settings_link'));
 
 		// Initialize Plugin Update Checker (only if library exists)
 		$puc_path = plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';
@@ -195,6 +199,16 @@ class Auto_WebP_Converter
 		$file['type'] = 'image/webp';
 
 		return $file;
+	}
+
+	/**
+	 * Add settings link to plugins page
+	 */
+	public function add_settings_link($links)
+	{
+		$settings_link = '<a href="' . admin_url('options-general.php?page=auto-webp-converter') . '">Settings</a>';
+		array_unshift($links, $settings_link);
+		return $links;
 	}
 
 }
