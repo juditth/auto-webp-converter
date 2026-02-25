@@ -93,7 +93,7 @@ class Auto_WebP_Converter
 					<tr valign="top">
 						<th scope="row">Quality (0-100)</th>
 						<td><input type="number" name="awc_quality"
-								value="<?php echo esc_attr(get_option('awc_quality', 90)); ?>" min="0" max="100" /></td>
+								value="<?php echo esc_attr(get_option('awc_quality', 95)); ?>" min="0" max="100" /></td>
 					</tr>
 					<tr valign="top">
 						<th scope="row">Original Files</th>
@@ -136,9 +136,9 @@ class Auto_WebP_Converter
 		}
 
 		// Get desired dimensions
-		$max_w = (int) get_option('awc_max_width', 1920);
-		$max_h = (int) get_option('awc_max_height', 1080);
-		$quality = (int) get_option('awc_quality', 80);
+		$max_w = (int) get_option('awc_max_width', 2300);
+		$max_h = (int) get_option('awc_max_height', 2300);
+		$quality = (int) get_option('awc_quality', 95);
 
 		// Resize if needed
 		$size = $editor->get_size();
