@@ -3,7 +3,7 @@
  * Plugin Name: Auto WebP Converter
  * Plugin URI:  https://github.com/juditth/auto-webp-converter/
  * Description: Automatically converts uploaded images to WebP, resizes them, and optionally deletes originals.
- * Version:     1.0.2
+ * Version:     1.0.4
  * Author:      Jitka Klingenbergová
  * Author URI:  https://vyladeny-web.cz/
  * License:     GPLv2 or later

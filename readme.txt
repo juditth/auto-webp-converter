@@ -3,7 +3,7 @@ Contributors: jitka88
 Tags: webp, convert, image optimization, resize, to webp
 Requires at least: 5.8
 Tested up to: 6.9
-Stable tag: 1.0.2
+Stable tag: 1.0.4
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -50,11 +50,18 @@ If the plugin encounters errors or if you just want to verify operations, check 
 
 == Changelog ==
 
+= 1.0.4 =
+* Fix: Version in readme to update plugin properly
+
+= 1.0.3 =
+* Fix: Sjednoceny výchozí hodnoty na 2300x2300 px a kvalitu 95.
+* Fix: Oprava logiky načítání výchozích rozměrů před uložením nastavení.
+
 = 1.0.2 =
-*   Update info source to not overload repository.
+* Update info source to not overload repository.
 
 = 1.0.1 =
-*   Update test.
+* Update test.
 
 = 1.0.0 =
-*   Initial release.
+* Initial release.
