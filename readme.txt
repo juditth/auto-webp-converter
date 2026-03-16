@@ -3,7 +3,7 @@ Contributors: jitka88
 Tags: webp, convert, image optimization, resize, to webp
 Requires at least: 5.8
 Tested up to: 6.9
-Stable tag: 1.0.4
+Stable tag: 1.0.5
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -17,7 +17,7 @@ Auto WebP Converter is a lightweight, efficient plugin designed to streamline yo
 **Key Features:**
 
 *   **Automatic WebP Conversion:** Seamlessly converts uploaded JPG and PNG files to WebP.
-*   **Smart Resizing:** Automatically resizes images that exceed your defined maximum width and height limits (default: 1920x1080).
+*   **Smart Resizing:** Automatically resizes images that exceed your defined maximum width and height limits (default: 2300x2300).
 *   **Original File Management:** You decide what happens to the source file – delete it to save disk space, or keep it renamed with an `_original` suffix.
 *   **Quality Control:** Adjustable conversion quality setting (0-100).
 *   **Debug Logging:** Includes a built-in logging system (`wp-content/uploads/awc_debug.log`) to track conversions and troubleshoot issues.
@@ -49,6 +49,9 @@ If the plugin encounters errors or if you just want to verify operations, check 
 1.  **Settings Page** - Easily configure dimensions, quality, and file handling preferences.
 
 == Changelog ==
+
+= 1.0.5 =
+* Fix: Preserve correct orientation for portrait JPEG uploads based on EXIF metadata.
 
 = 1.0.4 =
 * Fix: Version in readme to update plugin properly

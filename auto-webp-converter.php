@@ -3,7 +3,7 @@
  * Plugin Name: Auto WebP Converter
  * Plugin URI:  https://github.com/juditth/auto-webp-converter/
  * Description: Automatically converts uploaded images to WebP, resizes them, and optionally deletes originals.
- * Version:     1.0.4
+ * Version:     1.0.5
  * Author:      Jitka Klingenbergová
  * Author URI:  https://vyladeny-web.cz/
  * License:     GPLv2 or later
@@ -135,6 +135,8 @@ class Auto_WebP_Converter
 			return $file;
 		}
 
+		$this->apply_exif_orientation($editor, $file_path, $type);
+
 		// Get desired dimensions
 		$max_w = (int) get_option('awc_max_width', 2300);
 		$max_h = (int) get_option('awc_max_height', 2300);
@@ -199,6 +201,69 @@ class Auto_WebP_Converter
 		$file['type'] = 'image/webp';
 
 		return $file;
+	}
+
+	private function apply_exif_orientation($editor, $file_path, $mime_type)
+	{
+		if ($mime_type !== 'image/jpeg' && $mime_type !== 'image/jpg') {
+			return;
+		}
+
+		if (!function_exists('exif_read_data')) {
+			$this->log("EXIF extension is not available. Skipping orientation fix for: " . basename($file_path));
+			return;
+		}
+
+		$exif = @exif_read_data($file_path);
+		$orientation = isset($exif['Orientation']) ? (int) $exif['Orientation'] : 1;
+
+		if ($orientation === 1) {
+			return;
+		}
+
+		$this->log("Applying EXIF orientation {$orientation} to: " . basename($file_path));
+
+		$result = true;
+
+		switch ($orientation) {
+			case 2:
+				$result = $editor->flip(true, false);
+				break;
+			case 3:
+				$result = $editor->rotate(180);
+				break;
+			case 4:
+				$result = $editor->flip(false, true);
+				break;
+			case 5:
+				$result = $editor->flip(true, false);
+				if (!is_wp_error($result)) {
+					$result = $editor->rotate(-90);
+				}
+				break;
+			case 6:
+				$result = $editor->rotate(-90);
+				break;
+			case 7:
+				$result = $editor->flip(true, false);
+				if (!is_wp_error($result)) {
+					$result = $editor->rotate(90);
+				}
+				break;
+			case 8:
+				$result = $editor->rotate(90);
+				break;
+			default:
+				$this->log("Unsupported EXIF orientation {$orientation} for: " . basename($file_path));
+				return;
+		}
+
+		if (is_wp_error($result)) {
+			$this->log("Failed to apply EXIF orientation for: " . basename($file_path) . ". Error: " . $result->get_error_message());
+			return;
+		}
+
+		$this->log("EXIF orientation fixed for: " . basename($file_path));
 	}
 
 	/**
