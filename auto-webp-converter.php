@@ -3,7 +3,7 @@
  * Plugin Name: Auto WebP Converter
  * Plugin URI:  https://github.com/juditth/auto-webp-converter/
  * Description: Automatically converts uploaded images to WebP, resizes them, and optionally deletes originals.
- * Version:     1.0.5
+ * Version:     1.0.6
  * Author:      Jitka Klingenbergová
  * Author URI:  https://vyladeny-web.cz/
  * License:     GPLv2 or later
@@ -20,6 +20,7 @@ class Auto_WebP_Converter
 	{
 		add_action('admin_menu', array($this, 'add_settings_page'));
 		add_action('admin_init', array($this, 'register_settings'));
+		add_action('admin_init', array($this, 'maybe_cleanup_legacy_log'));
 		add_filter('wp_handle_upload', array($this, 'handle_upload'));
 
 		// Settings link on plugins page
@@ -39,11 +40,49 @@ class Auto_WebP_Converter
 
 	private function log($message)
 	{
-		$log_file = WP_CONTENT_DIR . '/uploads/awc_debug.log';
+		if (!defined('WP_DEBUG') || !WP_DEBUG) {
+			return;
+		}
+
+		$log_dir = WP_CONTENT_DIR . '/uploads/auto-webp-converter';
+		if (!$this->ensure_log_dir_protected($log_dir)) {
+			return;
+		}
+
+		$log_file = $log_dir . '/awc_debug.log';
 		$timestamp = current_time('mysql');
 		$formatted_message = "[{$timestamp}] {$message}" . PHP_EOL;
-		// Ensure uploads directory exists if not already (mostly for very fresh installs) but wp-content should be writeable
 		@file_put_contents($log_file, $formatted_message, FILE_APPEND);
+	}
+
+	private function ensure_log_dir_protected($log_dir)
+	{
+		if (!is_dir($log_dir) && !wp_mkdir_p($log_dir)) {
+			return false;
+		}
+
+		$htaccess = $log_dir . '/.htaccess';
+		if (!file_exists($htaccess)) {
+			$rules = "<IfModule mod_authz_core.c>\n\tRequire all denied\n</IfModule>\n"
+				. "<IfModule !mod_authz_core.c>\n\tOrder deny,allow\n\tDeny from all\n</IfModule>\n";
+			@file_put_contents($htaccess, $rules);
+		}
+
+		$index = $log_dir . '/index.php';
+		if (!file_exists($index)) {
+			@file_put_contents($index, "<?php\n// Silence is golden.\n");
+		}
+
+		$webconfig = $log_dir . '/web.config';
+		if (!file_exists($webconfig)) {
+			$iis = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+				. "<configuration>\n\t<system.webServer>\n\t\t<authorization>\n"
+				. "\t\t\t<deny users=\"*\" />\n\t\t</authorization>\n"
+				. "\t</system.webServer>\n</configuration>\n";
+			@file_put_contents($webconfig, $iis);
+		}
+
+		return true;
 	}
 
 	public function add_settings_page()
@@ -59,8 +98,8 @@ class Auto_WebP_Converter
 
 	public function register_settings()
 	{
-		register_setting('awc_settings_group', 'awc_max_width', array('sanitize_callback' => 'absint'));
-		register_setting('awc_settings_group', 'awc_max_height', array('sanitize_callback' => 'absint'));
+		register_setting('awc_settings_group', 'awc_max_width', array('sanitize_callback' => array($this, 'sanitize_dimension')));
+		register_setting('awc_settings_group', 'awc_max_height', array('sanitize_callback' => array($this, 'sanitize_dimension')));
 		register_setting('awc_settings_group', 'awc_quality', array('sanitize_callback' => array($this, 'sanitize_quality')));
 		register_setting('awc_settings_group', 'awc_delete_originals', array('sanitize_callback' => 'absint'));
 	}
@@ -69,6 +108,26 @@ class Auto_WebP_Converter
 	{
 		$quality = absint($input);
 		return max(0, min(100, $quality));
+	}
+
+	public function sanitize_dimension($input)
+	{
+		$value = absint($input);
+		return min(10000, $value);
+	}
+
+	public function maybe_cleanup_legacy_log()
+	{
+		if (get_option('awc_legacy_log_cleaned')) {
+			return;
+		}
+
+		$legacy_log = WP_CONTENT_DIR . '/uploads/awc_debug.log';
+		if (file_exists($legacy_log)) {
+			@unlink($legacy_log);
+		}
+
+		update_option('awc_legacy_log_cleaned', 1, false);
 	}
 
 	public function render_settings_page()
@@ -82,12 +141,12 @@ class Auto_WebP_Converter
 				<table class="form-table">
 					<tr valign="top">
 						<th scope="row">Max Width (px)</th>
-						<td><input type="number" name="awc_max_width"
+						<td><input type="number" name="awc_max_width" min="1" max="10000"
 								value="<?php echo esc_attr(get_option('awc_max_width', 2300)); ?>" /></td>
 					</tr>
 					<tr valign="top">
 						<th scope="row">Max Height (px)</th>
-						<td><input type="number" name="awc_max_height"
+						<td><input type="number" name="awc_max_height" min="1" max="10000"
 								value="<?php echo esc_attr(get_option('awc_max_height', 2300)); ?>" /></td>
 					</tr>
 					<tr valign="top">
@@ -112,9 +171,8 @@ class Auto_WebP_Converter
 
 	public function handle_upload($file)
 	{
-		// Only check valid uploads
-		if (isset($file['error']) && !empty($file['error'])) {
-			$this->log("Upload error for file: " . ($file['file'] ?? 'unknown') . ". Error: " . $file['error']);
+		// Only check valid uploads; let WordPress handle its own upload errors.
+		if (!empty($file['error'])) {
 			return $file;
 		}
 
@@ -156,7 +214,8 @@ class Auto_WebP_Converter
 
 		// Save as WebP
 		$path_info = pathinfo($file_path);
-		$new_path = $path_info['dirname'] . '/' . $path_info['filename'] . '.webp';
+		$new_filename = wp_unique_filename($path_info['dirname'], $path_info['filename'] . '.webp');
+		$new_path = trailingslashit($path_info['dirname']) . $new_filename;
 
 		$saved = $editor->save($new_path, 'image/webp');
 
@@ -174,8 +233,11 @@ class Auto_WebP_Converter
 			wp_delete_file($file_path);
 			$this->log("Deleted original file: " . basename($file_path));
 		} else {
-			// Rename original to _original
-			$original_renamed = $path_info['dirname'] . '/' . $path_info['filename'] . '_original.' . $path_info['extension'];
+			// Rename original to _original (keep extension when present)
+			$extension = isset($path_info['extension']) ? $path_info['extension'] : '';
+			$original_basename = $path_info['filename'] . '_original' . ($extension !== '' ? '.' . $extension : '');
+			$original_filename = wp_unique_filename($path_info['dirname'], $original_basename);
+			$original_renamed = trailingslashit($path_info['dirname']) . $original_filename;
 
 			global $wp_filesystem;
 			if (empty($wp_filesystem)) {
@@ -191,13 +253,10 @@ class Auto_WebP_Converter
 			}
 		}
 
-		// Update return array to point to WebP
+		// Update return array to point to WebP. Rebuild URL from dirname to avoid
+		// accidental substring matches if the old basename appears elsewhere in the URL.
 		$file['file'] = $new_path;
-		$file['url'] = str_replace(
-			$path_info['basename'],
-			$path_info['filename'] . '.webp',
-			$file['url']
-		);
+		$file['url'] = trailingslashit(dirname($file['url'])) . $new_filename;
 		$file['type'] = 'image/webp';
 
 		return $file;
