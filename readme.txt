@@ -3,7 +3,7 @@ Contributors: jitka88
 Tags: webp, convert, image optimization, resize, to webp
 Requires at least: 5.8
 Tested up to: 6.9
-Stable tag: 1.0.6
+Stable tag: 1.0.7
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -20,9 +20,10 @@ Auto WebP Converter is a lightweight, efficient plugin designed to streamline yo
 *   **Smart Resizing:** Automatically resizes images that exceed your defined maximum width and height limits (default: 2300x2300).
 *   **Original File Management:** You decide what happens to the source file – delete it to save disk space, or keep it renamed with an `_original` suffix.
 *   **Quality Control:** Adjustable conversion quality setting (0-100).
+*   **Server Compatibility Check:** Verifies that ImageMagick/Imagick or GD can save WebP files and warns administrators when conversion is unavailable.
 *   **Debug Logging:** Includes a built-in logging system (`wp-content/uploads/auto-webp-converter/awc_debug.log`) that writes only when `WP_DEBUG` is enabled. The directory is protected from direct HTTP access.
 
-The plugin uses the native WordPress image editor API (`wp_get_image_editor`), ensuring compatibility with both GD and ImageMagick libraries depending on your server configuration.
+The plugin uses the native WordPress image editor API (`wp_get_image_editor`), ensuring compatibility with both GD and ImageMagick libraries depending on your server configuration. WebP conversion requires either the Imagick PHP extension with WebP support or the GD PHP extension with WebP support.
 
 == Installation ==
 
@@ -32,6 +33,7 @@ The plugin uses the native WordPress image editor API (`wp_get_image_editor`), e
     *   Set **Max Width** & **Max Height**.
     *   Set **Quality**.
     *   Choose whether to **Delete original uploaded file**.
+    *   Check the server WebP support status shown at the top of the settings page.
 
 == Frequently Asked Questions ==
 
@@ -44,6 +46,9 @@ The image will not be upscaled. It will simply be converted to WebP (if it's a J
 = Where can I find the log file? =
 If the plugin encounters errors or if you just want to verify operations, check the log file located at: `wp-content/uploads/auto-webp-converter/awc_debug.log`. Logging only runs when `WP_DEBUG` is set to `true` in `wp-config.php`; the directory is protected against direct HTTP access.
 
+= What if my server does not support WebP conversion? =
+The plugin shows an administrator notice and keeps uploaded JPG/PNG files unchanged. Ask your hosting provider to enable the Imagick PHP extension with WebP support or the GD PHP extension with WebP support.
+
 = What happens to PNG transparency? =
 WebP supports alpha channels, but the result depends on your server's image library. When WordPress uses ImageMagick, transparency is usually preserved; the GD backend may flatten transparent pixels to black in some edge cases. If you rely on transparent PNGs, verify the output looks correct on your server, or keep the originals (uncheck "Delete original uploaded file" in settings).
 
@@ -52,6 +57,10 @@ WebP supports alpha channels, but the result depends on your server's image libr
 1.  **Settings Page** - Easily configure dimensions, quality, and file handling preferences.
 
 == Changelog ==
+
+= 1.0.7 =
+* Feature: Add server WebP support checks for ImageMagick/Imagick and GD.
+* Fix: Skip conversion cleanly and keep originals unchanged when the server cannot save WebP files.
 
 = 1.0.6 =
 * Fix: Prevent WebP file name collisions when uploading images with the same original name.

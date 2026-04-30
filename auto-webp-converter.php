@@ -3,7 +3,7 @@
  * Plugin Name: Auto WebP Converter
  * Plugin URI:  https://github.com/juditth/auto-webp-converter/
  * Description: Automatically converts uploaded images to WebP, resizes them, and optionally deletes originals.
- * Version:     1.0.6
+ * Version:     1.0.7
  * Author:      Jitka Klingenbergová
  * Author URI:  https://vyladeny-web.cz/
  * License:     GPLv2 or later
@@ -21,6 +21,7 @@ class Auto_WebP_Converter
 		add_action('admin_menu', array($this, 'add_settings_page'));
 		add_action('admin_init', array($this, 'register_settings'));
 		add_action('admin_init', array($this, 'maybe_cleanup_legacy_log'));
+		add_action('admin_notices', array($this, 'render_dependency_notice'));
 		add_filter('wp_handle_upload', array($this, 'handle_upload'));
 
 		// Settings link on plugins page
@@ -130,11 +131,97 @@ class Auto_WebP_Converter
 		update_option('awc_legacy_log_cleaned', 1, false);
 	}
 
+	private function get_webp_support_status()
+	{
+		$gd_loaded = extension_loaded('gd');
+		$gd_webp = function_exists('imagewebp');
+		$imagick_loaded = class_exists('Imagick');
+		$imagick_webp = false;
+
+		if ($imagick_loaded) {
+			try {
+				$imagick_webp = !empty(Imagick::queryFormats('WEBP'));
+			} catch (Exception $e) {
+				$imagick_webp = false;
+			}
+		}
+
+		$wp_supports_webp = function_exists('wp_image_editor_supports')
+			? wp_image_editor_supports(array('mime_type' => 'image/webp'))
+			: ($gd_webp || $imagick_webp);
+
+		return array(
+			'supported' => (bool) ($wp_supports_webp && ($gd_webp || $imagick_webp)),
+			'gd_loaded' => $gd_loaded,
+			'gd_webp' => $gd_webp,
+			'imagick_loaded' => $imagick_loaded,
+			'imagick_webp' => $imagick_webp,
+			'wp_supports_webp' => (bool) $wp_supports_webp,
+		);
+	}
+
+	private function get_webp_support_message($status)
+	{
+		if ($status['supported']) {
+			if ($status['imagick_webp'] && $status['gd_webp']) {
+				return 'WebP conversion is available through ImageMagick and GD.';
+			}
+
+			if ($status['imagick_webp']) {
+				return 'WebP conversion is available through ImageMagick.';
+			}
+
+			return 'WebP conversion is available through GD.';
+		}
+
+		if (!$status['imagick_loaded'] && !$status['gd_loaded']) {
+			return 'WebP conversion is not available because neither the Imagick nor GD PHP extension is loaded.';
+		}
+
+		if ($status['imagick_loaded'] && !$status['imagick_webp'] && $status['gd_loaded'] && !$status['gd_webp']) {
+			return 'WebP conversion is not available because ImageMagick and GD are loaded without WebP support.';
+		}
+
+		if ($status['imagick_loaded'] && !$status['imagick_webp']) {
+			return 'WebP conversion is not available because ImageMagick is loaded without WebP support.';
+		}
+
+		if ($status['gd_loaded'] && !$status['gd_webp']) {
+			return 'WebP conversion is not available because GD is loaded without WebP support.';
+		}
+
+		return 'WebP conversion is not available. Ask your hosting provider to enable the Imagick extension with WebP support or GD with WebP support.';
+	}
+
+	public function render_dependency_notice()
+	{
+		if (!current_user_can('manage_options')) {
+			return;
+		}
+
+		$status = $this->get_webp_support_status();
+		if ($status['supported']) {
+			return;
+		}
+
+		echo '<div class="notice notice-error"><p><strong>Auto WebP Converter:</strong> '
+			. esc_html($this->get_webp_support_message($status))
+			. ' Conversion is disabled until server WebP support is enabled.</p></div>';
+	}
+
 	public function render_settings_page()
 	{
+		$webp_status = $this->get_webp_support_status();
 		?>
 		<div class="wrap">
 			<h1>Auto WebP Converter Settings</h1>
+			<div class="notice <?php echo $webp_status['supported'] ? 'notice-success' : 'notice-error'; ?> inline">
+				<p><strong>Server WebP support:</strong> <?php echo esc_html($this->get_webp_support_message($webp_status)); ?></p>
+				<ul>
+					<li>ImageMagick / Imagick: <?php echo esc_html($webp_status['imagick_webp'] ? 'available with WebP' : ($webp_status['imagick_loaded'] ? 'loaded without WebP' : 'not loaded')); ?></li>
+					<li>GD: <?php echo esc_html($webp_status['gd_webp'] ? 'available with WebP' : ($webp_status['gd_loaded'] ? 'loaded without WebP' : 'not loaded')); ?></li>
+				</ul>
+			</div>
 			<form method="post" action="options.php">
 				<?php settings_fields('awc_settings_group'); ?>
 				<?php do_settings_sections('awc_settings_group'); ?>
@@ -179,6 +266,12 @@ class Auto_WebP_Converter
 		// Check mime type
 		$type = $file['type'];
 		if (!in_array($type, array('image/jpeg', 'image/jpg', 'image/png'))) {
+			return $file;
+		}
+
+		$webp_status = $this->get_webp_support_status();
+		if (!$webp_status['supported']) {
+			$this->log("WebP conversion skipped. " . $this->get_webp_support_message($webp_status));
 			return $file;
 		}
 
