@@ -744,7 +744,7 @@ class Auto_WebP_Converter
 				wp_send_json_error('invalid subfolder');
 			}
 			$candidate = wp_normalize_path(realpath($base . '/' . $subfolder));
-			if (!$candidate || strpos($candidate, $base) !== 0) {
+			if (!$candidate || ($candidate !== $base && strpos($candidate, $base . '/') !== 0)) {
 				wp_send_json_error('subfolder not found inside uploads');
 			}
 			$root = $candidate;
@@ -773,7 +773,8 @@ class Auto_WebP_Converter
 				$list[] = wp_normalize_path($f->getPathname());
 			}
 		} catch (Exception $e) {
-			wp_send_json_error('failed to scan: ' . $e->getMessage());
+			$this->log('Bulk scan failed: ' . $e->getMessage());
+			wp_send_json_error('Failed to scan the uploads directory.');
 		}
 
 		$token = wp_generate_password(12, false);
@@ -807,11 +808,19 @@ class Auto_WebP_Converter
 		$results = array();
 		$slice = array_slice($list, $offset, $batch);
 		foreach ($slice as $path) {
-			$inside = ($base && strpos($path, $base) === 0);
-			$rel = $inside ? ltrim(substr($path, strlen($base)), '/') : basename($path);
+			$path = wp_normalize_path($path);
+
+			// Hard guard: never touch anything outside the uploads directory,
+			// regardless of what the stored list contains.
+			if (!$base || strpos($path, $base . '/') !== 0) {
+				$results[] = array('status' => 'error', 'reason' => 'outside uploads', 'file' => basename($path));
+				continue;
+			}
+
+			$rel = ltrim(substr($path, strlen($base)), '/');
 			$res = $this->compress_image_file($path, $quality, $min_gain);
 			$res['file'] = $rel;
-			if ($inside && $base_url !== '') {
+			if ($base_url !== '') {
 				$res['url'] = trailingslashit($base_url) . $rel;
 			}
 			$results[] = $res;

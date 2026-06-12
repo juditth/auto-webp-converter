@@ -3,7 +3,7 @@ Contributors: jitka88
 Tags: webp, convert, image optimization, resize, to webp
 Requires at least: 5.8
 Tested up to: 6.9
-Stable tag: 1.0.7
+Stable tag: 1.1.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -20,6 +20,7 @@ Auto WebP Converter is a lightweight, efficient plugin designed to streamline yo
 *   **Smart Resizing:** Automatically resizes images that exceed your defined maximum width and height limits (default: 2300x2300).
 *   **Original File Management:** You decide what happens to the source file – delete it to save disk space, or keep it renamed with an `_original` suffix.
 *   **Quality Control:** Adjustable conversion quality setting (0-100).
+*   **Bulk Compress Existing Files:** A maintenance tool (Settings -> Auto WebP) that re-compresses JPEG files already in the media library in place. Same name, format and dimensions are kept; only the physical file size is reduced. PNG and WebP files are skipped. The database, attachment metadata, image URLs and generated thumbnail sizes are never touched.
 *   **Server Compatibility Check:** Verifies that ImageMagick/Imagick or GD can save WebP files and warns administrators when conversion is unavailable.
 *   **Debug Logging:** Includes a built-in logging system (`wp-content/uploads/auto-webp-converter/awc_debug.log`) that writes only when `WP_DEBUG` is enabled. The directory is protected from direct HTTP access.
 
@@ -38,7 +39,7 @@ The plugin uses the native WordPress image editor API (`wp_get_image_editor`), e
 == Frequently Asked Questions ==
 
 = Does this plugin affect images already in my Media Library? =
-No. The plugin currently processes only *new* uploads that occur after the plugin is activated.
+Automatic WebP conversion only applies to *new* uploads. For images already in the library there is an optional, manually triggered tool under **Settings -> Auto WebP -> Compress Existing Files**, which re-compresses existing JPEG files in place to reduce their file size without changing format, dimensions, file names or any database references. It is lossy and cannot be undone, so make a full backup of your `uploads` folder before running it.
 
 = What happens if I upload an image smaller than the Max Width/Height? =
 The image will not be upscaled. It will simply be converted to WebP (if it's a JPG/PNG) and saved.
@@ -56,7 +57,35 @@ WebP supports alpha channels, but the result depends on your server's image libr
 
 1.  **Settings Page** - Easily configure dimensions, quality, and file handling preferences.
 
+== Security ==
+
+We take the security of this plugin seriously. If you discover a security vulnerability, please report it privately so it can be fixed before public disclosure.
+
+*   **Contact:** tvorime@vyladeny-web.cz
+*   **Please do not** open a public issue or disclose the vulnerability publicly until a fix has been released.
+*   We aim to acknowledge reports within a reasonable time and to provide a fix through the plugin's built-in update mechanism.
+
+The plugin's administrative actions (including the bulk "Compress Existing Files" tool) require the `manage_options` capability and are protected with WordPress nonces. File operations are restricted to the WordPress `uploads` directory.
+
+== Third-party components ==
+
+This plugin bundles the following third-party component:
+
+*   **Plugin Update Checker** (YahnisElsts) – used to deliver plugin updates from the author's update server over HTTPS. Licensed under the MIT License. Located in the `plugin-update-checker/` directory. It is kept up to date as part of plugin maintenance.
+
+== Privacy ==
+
+The plugin processes images locally on your server and does not send image data to any external service. The built-in update checker contacts the author's update server (over HTTPS) only to check for new plugin versions.
+
+Note on image metadata: when re-compressing existing JPEG files with the ImageMagick engine, embedded EXIF metadata (which can include the date taken, camera model and **GPS location**) is preserved. If you do not want location data embedded in publicly accessible images, strip metadata before publishing.
+
 == Changelog ==
+
+= 1.1.0 =
+* Feature: Add "Compress Existing Files" tool (Settings -> Auto WebP) to re-compress existing JPEG files in the media library in place, with a live progress log and clickable links to each file.
+* Privacy: With ImageMagick, EXIF metadata (date, GPS, camera) and the colour profile are preserved during bulk re-compression; PNG and WebP are skipped.
+* Security: Restrict all bulk file operations to the uploads directory with hardened path checks; admin capability and nonce checks on all AJAX endpoints.
+* Docs: Add Security (vulnerability disclosure), Third-party components and Privacy sections.
 
 = 1.0.7 =
 * Feature: Add server WebP support checks for ImageMagick/Imagick and GD.
