@@ -3,7 +3,7 @@
  * Plugin Name: Auto WebP Converter
  * Plugin URI:  https://github.com/juditth/auto-webp-converter/
  * Description: Automatically converts uploaded images to WebP, resizes them, and optionally deletes originals.
- * Version:     1.1.0
+ * Version:     1.1.1
  * Author:      Jitka Klingenbergová
  * Author URI:  https://vyladeny-web.cz/
  * License:     GPLv2 or later
@@ -119,7 +119,17 @@ class Auto_WebP_Converter
 	public function sanitize_dimension($input)
 	{
 		$value = absint($input);
-		return min(10000, $value);
+		return $value > 0 ? min(10000, $value) : 2300;
+	}
+
+	private function report_processing_failure($file, $reason)
+	{
+		$this->log('Image processing failed for ' . basename($file['file']) . ': ' . $reason);
+		// wp_handle_upload runs after the uploaded file has been moved to uploads.
+		// Reject attachment creation and remove this failed upload from disk.
+		wp_delete_file($file['file']);
+		return array('error' => 'Auto WebP Converter: ' . basename($file['file']) . ' — ' . $reason
+			. ' Upload rejected. Check the image dimensions and server limits, then try again.');
 	}
 
 	public function maybe_cleanup_legacy_log()
@@ -211,7 +221,7 @@ class Auto_WebP_Converter
 
 		echo '<div class="notice notice-error"><p><strong>Auto WebP Converter:</strong> '
 			. esc_html($this->get_webp_support_message($status))
-			. ' Conversion is disabled until server WebP support is enabled.</p></div>';
+			. ' JPG/PNG uploads are rejected until server WebP support is enabled.</p></div>';
 	}
 
 	public function render_settings_page()
@@ -278,8 +288,7 @@ class Auto_WebP_Converter
 
 		$webp_status = $this->get_webp_support_status();
 		if (!$webp_status['supported']) {
-			$this->log("WebP conversion skipped. " . $this->get_webp_support_message($webp_status));
-			return $file;
+			return $this->report_processing_failure($file, $this->get_webp_support_message($webp_status));
 		}
 
 		$file_path = $file['file'];
@@ -288,29 +297,40 @@ class Auto_WebP_Converter
 		// Load image editor
 		$editor = wp_get_image_editor($file_path);
 		if (is_wp_error($editor)) {
-			// Failed to load editor, just return original
-			$this->log("Failed to load image editor for: " . basename($file_path) . ". Error: " . $editor->get_error_message());
-			return $file;
+			return $this->report_processing_failure($file, 'Cannot load image editor: ' . $editor->get_error_message());
 		}
 
 		$this->apply_exif_orientation($editor, $file_path, $type);
 
 		// Get desired dimensions
-		$max_w = (int) get_option('awc_max_width', 2300);
-		$max_h = (int) get_option('awc_max_height', 2300);
+		$max_w = $this->sanitize_dimension(get_option('awc_max_width', 2300));
+		$max_h = $this->sanitize_dimension(get_option('awc_max_height', 2300));
 		$quality = (int) get_option('awc_quality', 95);
 
 		// Resize if needed
 		$size = $editor->get_size();
+		if (empty($size['width']) || empty($size['height'])) {
+			return $this->report_processing_failure($file, 'Cannot read image dimensions.');
+		}
 		if ($size['width'] > $max_w || $size['height'] > $max_h) {
 			$this->log("Resizing image. Original: {$size['width']}x{$size['height']}. Max: {$max_w}x{$max_h}.");
-			$editor->resize($max_w, $max_h, false);
+			$resized = $editor->resize($max_w, $max_h, false);
+			if (is_wp_error($resized)) {
+				return $this->report_processing_failure($file, 'Resizing failed: ' . $resized->get_error_message());
+			}
+			$size = $editor->get_size();
+			if (empty($size['width']) || empty($size['height']) || $size['width'] > $max_w || $size['height'] > $max_h) {
+				return $this->report_processing_failure($file, 'Resizing did not produce the requested dimensions.');
+			}
 		} else {
 			$this->log("No resizing needed. Dimensions: {$size['width']}x{$size['height']} are within limits.");
 		}
 
 		// Make sure we set quality
-		$editor->set_quality($quality);
+		$quality_result = $editor->set_quality($quality);
+		if (is_wp_error($quality_result)) {
+			return $this->report_processing_failure($file, 'Cannot set image quality: ' . $quality_result->get_error_message());
+		}
 
 		// Save as WebP
 		$path_info = pathinfo($file_path);
@@ -320,9 +340,15 @@ class Auto_WebP_Converter
 		$saved = $editor->save($new_path, 'image/webp');
 
 		if (is_wp_error($saved)) {
-			// Failed to save webp, preserve original
-			$this->log("Failed to save WebP to: " . basename($new_path) . ". Error: " . $saved->get_error_message());
-			return $file;
+			wp_delete_file($new_path);
+			return $this->report_processing_failure($file, 'Cannot save WebP: ' . $saved->get_error_message());
+		}
+
+		// Verify the actual output before accepting the upload or removing its source.
+		$output_size = @getimagesize($new_path);
+		if (!$output_size || $output_size['mime'] !== 'image/webp' || $output_size[0] > $max_w || $output_size[1] > $max_h) {
+			wp_delete_file($new_path);
+			return $this->report_processing_failure($file, 'The saved WebP is invalid or exceeds the configured dimensions.');
 		}
 
 		$this->log("Successfully converted to WebP: " . basename($new_path));

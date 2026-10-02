@@ -3,7 +3,7 @@ Contributors: jitka88
 Tags: webp, convert, image optimization, resize, to webp
 Requires at least: 5.8
 Tested up to: 6.9
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -48,7 +48,7 @@ The image will not be upscaled. It will simply be converted to WebP (if it's a J
 If the plugin encounters errors or if you just want to verify operations, check the log file located at: `wp-content/uploads/auto-webp-converter/awc_debug.log`. Logging only runs when `WP_DEBUG` is set to `true` in `wp-config.php`; the directory is protected against direct HTTP access.
 
 = What if my server does not support WebP conversion? =
-The plugin shows an administrator notice and keeps uploaded JPG/PNG files unchanged. Ask your hosting provider to enable the Imagick PHP extension with WebP support or the GD PHP extension with WebP support.
+The plugin shows an administrator notice and rejects new JPG/PNG uploads when conversion is unavailable. Uploads are also rejected if loading, resizing, setting quality, or saving fails, or if the saved WebP exceeds the configured dimensions. Files from the rejected upload are removed; existing media and the source file on your computer are not changed. Ask your hosting provider to enable the Imagick PHP extension with WebP support or the GD PHP extension with WebP support.
 
 = What happens to PNG transparency? =
 WebP supports alpha channels, but the result depends on your server's image library. When WordPress uses ImageMagick, transparency is usually preserved; the GD backend may flatten transparent pixels to black in some edge cases. If you rely on transparent PNGs, verify the output looks correct on your server, or keep the originals (uncheck "Delete original uploaded file" in settings).
@@ -80,6 +80,11 @@ The plugin processes images locally on your server and does not send image data 
 Note on image metadata: when re-compressing existing JPEG files with the ImageMagick engine, embedded EXIF metadata (which can include the date taken, camera model and **GPS location**) is preserved. If you do not want location data embedded in publicly accessible images, strip metadata before publishing.
 
 == Changelog ==
+
+= 1.1.1 =
+* Fix: Reject JPG/PNG uploads when conversion or required resizing fails, with an upload error instead of silently accepting the original.
+* Verify saved WebP dimensions and remove files from rejected uploads.
+* Use default dimensions for empty or zero dimension settings.
 
 = 1.1.0 =
 * Feature: Add "Compress Existing Files" tool (Settings -> Auto WebP) to re-compress existing JPEG files in the media library in place, with a live progress log and clickable links to each file.
